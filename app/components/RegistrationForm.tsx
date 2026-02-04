@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 declare global {
   interface Window {
@@ -92,14 +91,27 @@ export default function RegistrationForm() {
     setPaymentError(null);
 
     try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            "Registration failed on server"
+        );
+      }
+
       setShowPayment(true);
     } catch (err: any) {
       setPaymentError(err.message || "Something went wrong. Please try again.");
       console.error(err);
     } finally {
-      if (!showPayment) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 

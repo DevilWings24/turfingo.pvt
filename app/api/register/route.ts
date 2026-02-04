@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Payment from "@/models/Payment";
-import { razorpay } from "@/lib/razorpay";
 import { TOURNAMENT } from "@/lib/tournament";
+
+const PAYMENT_LINK_URL =
+  "https://pages.razorpay.com/pl_SC2n9aRqQ4joj2/view";
 
 export async function POST(req: Request) {
   try {
@@ -12,40 +14,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, email, phone, dob, university, position } = body;
 
-    // 1️⃣ Find or create user
-    let user = await User.findOne({ email });
+    // 1️⃣ Upsert user (save latest details)
+    const user = await User.findOneAndUpdate(
+      { email },
+      { name, email, phone, dob, university, position },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
-    if (!user) {
-      user = await User.create({
-        name,
-        email,
-        phone,
-        dob,
-        university,
-        position,
-      });
-    }
-
-    // 2️⃣ Create Razorpay order (backend decides amount)
-    const order = await razorpay.orders.create({
-      amount: TOURNAMENT.fee * 100, // paise
-      currency: TOURNAMENT.currency,
-      notes: {
-        tournament: TOURNAMENT.name,
-      },
-    });
-
-    // 3️⃣ Save payment record
+    // 2️⃣ Save payment intent (payment handled via Razorpay link)
     await Payment.create({
       userId: user._id,
-      razorpayOrderId: order.id,
       amount: TOURNAMENT.fee,
       status: "created",
+      paymentProvider: "razorpay_link",
+      paymentLinkUrl: PAYMENT_LINK_URL,
     });
 
     return NextResponse.json({
-      orderId: order.id,
-      amount: TOURNAMENT.fee,
+      success: true,
     });
 
   } catch (error: any) {
